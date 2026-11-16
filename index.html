@@ -1,0 +1,2142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eksplorasi 3D: Misteri Lensa Mata - IPAS SD</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Fredoka & Nunito for child-friendly sci-fi UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Three.js r128 & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Nunito', sans-serif;
+            background-color: #060d1a;
+            color: #f8fafc;
+        }
+        h1, h2, h3, .font-title {
+            font-family: 'Fredoka', sans-serif;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .interactive-panel {
+            pointer-events: auto;
+        }
+        /* Glassmorphism Sci-Fi Child-Friendly Theme */
+        .glass-panel {
+            background: rgba(15, 28, 55, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1.5px solid rgba(56, 189, 248, 0.35);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.15);
+        }
+        .glass-card-light {
+            background: rgba(30, 58, 108, 0.65);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(125, 211, 252, 0.3);
+        }
+        /* Custom Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 10px;
+            cursor: pointer;
+            background: linear-gradient(90deg, #0284c7, #38bdf8, #fde047);
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 3px solid #0284c7;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.9);
+            transition: transform 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* 3D Hotspot Labels in HTML Overlay */
+        .hotspot-marker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            z-index: 5;
+        }
+        .hotspot-marker:hover {
+            transform: translate(-50%, -50%) scale(1.18);
+            z-index: 20;
+        }
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 36px;
+            height: 36px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 2px solid #38bdf8;
+            animation: pulseAnim 1.8s infinite ease-out;
+            pointer-events: none;
+        }
+        @keyframes pulseAnim {
+            0% { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; }
+        }
+        /* Custom Scrollbar for panels */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.5);
+            border-radius: 8px;
+        }
+        .btn-sci {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .btn-sci:hover {
+            transform: translateY(-2px);
+        }
+        .btn-sci:active {
+            transform: translateY(1px) scale(0.97);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D WebGL Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- HTML Overlay Container for 3D Hotspots -->
+    <div id="hotspots-container" class="absolute inset-0 pointer-events-none overflow-hidden z-10"></div>
+
+    <!-- Main UI Overlay -->
+    <div class="ui-layer p-2 sm:p-4">
+
+        <!-- TOP BAR: Title, Mode Switcher, Cross-Section Toggle, Audio Toggle -->
+        <header class="w-full flex flex-col lg:flex-row items-center justify-between gap-2 interactive-panel">
+            <!-- Brand & Title -->
+            <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 border border-cyan-200/40">
+                        <span class="text-2xl">👁️</span>
+                    </div>
+                    <div>
+                        <h1 class="font-title text-base sm:text-lg md:text-xl font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-yellow-300 leading-tight">
+                            Eksplorasi 3D: Misteri Lensa Mata
+                        </h1>
+                        <p class="text-[11px] sm:text-xs text-sky-200/80 font-semibold">
+                            Laboratorium Virtual IPAS SD • Kurikulum Merdeka
+                        </p>
+                    </div>
+                </div>
+                <!-- Mobile Quick Audio Button -->
+                <button id="btn-audio-mobile" onclick="toggleMute()" class="lg:hidden p-2 rounded-xl bg-slate-800/80 border border-sky-400/40 text-sky-300">
+                    🔊
+                </button>
+            </div>
+
+            <!-- Navigation Mode Tabs -->
+            <nav class="glass-panel p-1.5 rounded-2xl flex flex-wrap items-center justify-center gap-1.5 w-full lg:w-auto">
+                <button id="tab-mode-1" onclick="switchMode(1)" class="btn-sci flex-1 sm:flex-initial px-3 py-2 rounded-xl font-title text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/30 border border-cyan-300/50">
+                    <span>🔍</span> <span>1. Anatomi 3D</span>
+                </button>
+                <button id="tab-mode-2" onclick="switchMode(2)" class="btn-sci flex-1 sm:flex-initial px-3 py-2 rounded-xl font-title text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 text-sky-200 hover:bg-slate-800/60">
+                    <span>🔦</span> <span>2. Lab Cahaya & Lensa</span>
+                </button>
+                <button id="tab-mode-3" onclick="switchMode(3)" class="btn-sci flex-1 sm:flex-initial px-3 py-2 rounded-xl font-title text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 text-sky-200 hover:bg-slate-800/60">
+                    <span>🎮</span> <span>3. Misi & Kuis</span>
+                </button>
+            </nav>
+
+            <!-- Global 3D Tools: Cross-Section & Camera Reset -->
+            <div class="glass-panel px-3 py-1.5 rounded-2xl flex items-center justify-center gap-2 w-full lg:w-auto">
+                <button id="btn-xray" onclick="toggleCrossSection()" class="btn-sci px-3 py-1.5 rounded-xl font-title text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/60 text-amber-300 hover:bg-amber-500/30">
+                    <span>🔪</span> <span id="xray-label">Mode Irisan: AKTIF</span>
+                </button>
+                <button onclick="resetCameraView()" class="btn-sci px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-800/90 hover:bg-slate-700 text-sky-200 border border-sky-400/30" title="Reset Sudut Kamera">
+                    🔄 Reset Kamera
+                </button>
+                <button id="btn-audio-desktop" onclick="toggleMute()" class="hidden lg:flex btn-sci p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-sky-300 border border-sky-400/30" title="Suara Efek">
+                    🔊
+                </button>
+            </div>
+        </header>
+
+        <!-- MIDDLE AREA: Contextual Panels per Mode -->
+        <main class="flex-1 w-full flex flex-col md:flex-row items-stretch justify-between py-2 gap-3 overflow-hidden pointer-events-none">
+
+            <!-- ================= MODE 1: ANATOMY EXPLORATION ================= -->
+            <div id="panel-mode-1" class="w-full flex flex-col md:flex-row justify-between items-end md:items-center gap-3 pointer-events-none">
+                <!-- Left Helper / Quick Part List -->
+                <div class="glass-panel p-3 rounded-2xl w-full md:w-64 interactive-panel max-h-[32vh] md:max-h-[70vh] overflow-y-auto">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="font-title text-sm sm:text-base font-bold text-cyan-300 flex items-center gap-1.5">
+                            <span>🧭</span> 7 Bagian Utama Mata
+                        </h2>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/30">Klik Titik</span>
+                    </div>
+                    <p class="text-xs text-slate-300 mb-2.5 leading-relaxed">
+                        Putar bola mata 3D dengan jari/mouse, atau pilih bagian di bawah untuk melihat rahasianya!
+                    </p>
+                    <div id="anatomy-list-buttons" class="grid grid-cols-2 md:grid-cols-1 gap-1.5">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Right Detail Card when Hotspot Clicked -->
+                <div id="anatomy-detail-card" class="glass-panel p-4 rounded-2xl w-full md:w-96 interactive-panel transition-all duration-300 transform translate-y-0">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div class="flex items-center gap-2.5">
+                            <span id="detail-icon" class="text-3xl bg-cyan-500/20 p-2 rounded-xl border border-cyan-400/40">👁️</span>
+                            <div>
+                                <span id="detail-badge" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-500/30 text-sky-200">Bagian Luar</span>
+                                <h3 id="detail-title" class="font-title text-lg sm:text-xl font-bold text-white mt-0.5">Kornea (Jendela Mata)</h3>
+                            </div>
+                        </div>
+                        <button onclick="speakCurrentPart()" class="btn-sci px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-200 text-xs font-bold flex items-center gap-1" title="Dengarkan Penjelasan">
+                            <span>🗣️</span> <span>Suara</span>
+                        </button>
+                    </div>
+
+                    <p id="detail-desc" class="text-xs sm:text-sm text-slate-200 leading-relaxed mb-3 bg-slate-900/50 p-3 rounded-xl border border-slate-700/60">
+                        Kornea adalah lapisan bening di bagian paling depan mata. Tugasnya melindungi mata dan membelokkan (membiaskan) cahaya yang pertama kali masuk!
+                    </p>
+
+                    <!-- Camera Analogy Box -->
+                    <div class="glass-card-light p-3 rounded-xl mb-2.5">
+                        <div class="text-xs font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+                            <span>📸</span> <span>Analogi Kamera Fotografi:</span>
+                        </div>
+                        <p id="detail-analogy" class="text-xs text-sky-100 leading-relaxed">
+                            Seperti <strong>pelindung kaca lensa paling depan</strong> pada kamera HP yang menjaga agar debu tidak masuk dan membantu mengumpulkan cahaya.
+                        </p>
+                    </div>
+
+                    <!-- Fun Fact Box -->
+                    <div class="bg-emerald-950/60 border border-emerald-500/40 p-2.5 rounded-xl flex items-start gap-2">
+                        <span class="text-base">💡</span>
+                        <p id="detail-fact" class="text-[11px] sm:text-xs text-emerald-200 leading-snug">
+                            <strong>Tahukah Kamu?</strong> Kornea adalah satu-satunya bagian tubuh kita yang tidak punya pembuluh darah karena harus selalu bening!
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= MODE 2: LIGHT & ACCOMMODATION LAB ================= -->
+            <div id="panel-mode-2" class="hidden w-full flex-col md:flex-row justify-between items-end md:items-center gap-3 pointer-events-none">
+                <!-- Left Controls: Sliders & Defect Simulators -->
+                <div class="glass-panel p-3.5 sm:p-4 rounded-2xl w-full md:w-96 interactive-panel max-h-[52vh] md:max-h-[76vh] overflow-y-auto space-y-3.5">
+                    <div class="border-b border-sky-400/20 pb-2">
+                        <h2 class="font-title text-base sm:text-lg font-bold text-amber-300 flex items-center gap-2">
+                            <span>🔬</span> Laboratorium Cahaya & Lensa
+                        </h2>
+                        <p class="text-xs text-slate-300">Geser pengatur di bawah dan amati perubahan Pupil, Lensa, dan Sinar Cahaya secara langsung!</p>
+                    </div>
+
+                    <!-- Slider 1: Room Light Intensity -->
+                    <div class="glass-card-light p-3 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="font-title text-xs sm:text-sm font-bold text-sky-200 flex items-center gap-1.5">
+                                <span>☀️</span> 1. Intensitas Cahaya Ruangan
+                            </label>
+                            <span id="label-light-val" class="text-xs font-extrabold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">Sedang (50%)</span>
+                        </div>
+                        <input id="slider-light" type="range" min="5" max="100" value="50" oninput="onLabLightChange(this.value)">
+                        <div class="flex justify-between text-[10px] text-slate-300 font-semibold">
+                            <span>🌑 Gelap (Pupil Membesar)</span>
+                            <span>☀️ Terang (Pupil Mengecil)</span>
+                        </div>
+                    </div>
+
+                    <!-- Slider 2: Object Distance (Lens Accommodation) -->
+                    <div class="glass-card-light p-3 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="font-title text-xs sm:text-sm font-bold text-sky-200 flex items-center gap-1.5">
+                                <span>🍎</span> 2. Jarak Benda (Akomodasi Lensa)
+                            </label>
+                            <span id="label-dist-val" class="text-xs font-extrabold px-2 py-0.5 rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/40">Sedang</span>
+                        </div>
+                        <input id="slider-distance" type="range" min="15" max="100" value="60" oninput="onLabDistanceChange(this.value)">
+                        <div class="flex justify-between text-[10px] text-slate-300 font-semibold">
+                            <span>🔍 Dekat (Lensa Menebal)</span>
+                            <span>🏔️ Jauh (Lensa Menipis)</span>
+                        </div>
+                    </div>
+
+                    <!-- Eye Condition / Defect Simulator -->
+                    <div class="glass-card-light p-3 rounded-xl space-y-2.5">
+                        <label class="font-title text-xs sm:text-sm font-bold text-pink-300 flex items-center gap-1.5">
+                            <span>👓</span> 3. Simulasi Kelainan Mata & Kacamata
+                        </label>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button id="btn-cond-normal" onclick="setVisionCondition('normal')" class="btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 shadow-md">
+                                😊 Normal
+                            </button>
+                            <button id="btn-cond-miopi" onclick="setVisionCondition('miopi')" class="btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600">
+                                😵 Miopi (Rabun Jauh)
+                            </button>
+                            <button id="btn-cond-hiper" onclick="setVisionCondition('hipermetropi')" class="btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600">
+                                🧐 Hipermetropi (Rabun Dekat)
+                            </button>
+                        </div>
+
+                        <!-- Corrective Glasses Action -->
+                        <div id="glasses-action-box" class="hidden pt-1">
+                            <button id="btn-toggle-glasses" onclick="toggleCorrectiveGlasses()" class="w-full btn-sci py-2.5 px-3 rounded-xl font-title text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-lg flex items-center justify-center gap-2">
+                                <span>🕶️</span> <span id="glasses-btn-text">Pasang Kacamata Lensa Cekung (-)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Live Scientific Telemetry Card -->
+                <div class="glass-panel p-3.5 rounded-2xl w-full md:w-80 interactive-panel space-y-2.5">
+                    <h3 class="font-title text-sm font-bold text-cyan-300 flex items-center gap-1.5">
+                        <span>📡</span> Monitor Optik Real-Time
+                    </h3>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-700">
+                            <div class="text-slate-400 text-[10px]">Diameter Pupil</div>
+                            <div id="tele-pupil" class="font-title text-sm font-bold text-sky-300 mt-0.5">Sedang (4.5 mm)</div>
+                        </div>
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-700">
+                            <div class="text-slate-400 text-[10px]">Bentuk Lensa Mata</div>
+                            <div id="tele-lens" class="font-title text-sm font-bold text-amber-300 mt-0.5">Normal</div>
+                        </div>
+                    </div>
+                    <div id="tele-focus-box" class="p-3 rounded-xl bg-emerald-950/80 border border-emerald-400/50">
+                        <div class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                            <span id="tele-focus-icon">🎯</span> <span id="tele-focus-title">Titik Fokus: Tepat di Retina!</span>
+                        </div>
+                        <p id="tele-focus-desc" class="text-[11px] text-emerald-100 mt-1 leading-relaxed">
+                            Cahaya kuning menembus Kornea → Pupil → Lensa dan berkumpul tepat di bintik kuning Retina. Bayangan terlihat jelas!
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= MODE 3: MINI-GAME & DETECTIVE QUIZ ================= -->
+            <div id="panel-mode-3" class="hidden w-full flex-col md:flex-row justify-between items-end md:items-center gap-3 pointer-events-none">
+                <!-- Left Sub-Mode Selector & Game Controls -->
+                <div class="glass-panel p-4 rounded-2xl w-full md:w-[420px] interactive-panel max-h-[75vh] overflow-y-auto">
+                    <!-- Sub-mode switcher -->
+                    <div class="flex gap-2 mb-3 bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+                        <button id="subtab-game1" onclick="switchGameTab(1)" class="flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950">
+                            ⚡ Tantangan 1: Labirin Fokus
+                        </button>
+                        <button id="subtab-game2" onclick="switchGameTab(2)" class="flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold text-sky-200 hover:bg-slate-800">
+                            🕵️ Tantangan 2: Kuis Detektif
+                        </button>
+                    </div>
+
+                    <!-- CHALLENGE 1: FOCUS LABYRINTH 3D -->
+                    <div id="game-challenge-1" class="space-y-3">
+                        <div class="flex items-center justify-between bg-slate-900/90 px-3 py-2 rounded-xl border border-amber-400/40">
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">Skor Penyelamatan</div>
+                                <div id="g1-score" class="font-title text-lg font-bold text-amber-300">0 Poin</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">Sisa Waktu</div>
+                                <div id="g1-timer" class="font-title text-lg font-bold text-cyan-300">20.0 dtk</div>
+                            </div>
+                        </div>
+
+                        <p id="g1-instruction" class="text-xs text-sky-100 bg-sky-950/60 p-2.5 rounded-xl border border-sky-400/30 leading-relaxed">
+                            <strong>Misi:</strong> Apel 3D berpindah tempat & cahaya ruangan berubah! Atur <strong>Ketebalan Lensa</strong> dan <strong>Bukaan Pupil</strong> di bawah agar bar akurasi mencapai 100% dan sinar jatuh tepat di Retina!
+                        </p>
+
+                        <!-- Accuracy Meter -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-xs font-bold">
+                                <span class="text-slate-300">Akurasi Fokus Retina:</span>
+                                <span id="g1-accuracy-text" class="text-amber-300">0%</span>
+                            </div>
+                            <div class="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                                <div id="g1-accuracy-bar" class="h-full bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400 transition-all duration-150" style="width: 30%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Player Sliders -->
+                        <div class="space-y-2.5 pt-1">
+                            <div class="glass-card-light p-2.5 rounded-xl">
+                                <div class="flex justify-between text-xs font-bold text-cyan-200 mb-1">
+                                    <span>🔍 Atur Ketebalan Lensa Mata</span>
+                                    <span id="g1-lens-val">50%</span>
+                                </div>
+                                <input id="g1-slider-lens" type="range" min="10" max="100" value="50" oninput="onGame1SliderChange()">
+                            </div>
+
+                            <div class="glass-card-light p-2.5 rounded-xl">
+                                <div class="flex justify-between text-xs font-bold text-amber-200 mb-1">
+                                    <span>👁️ Atur Bukaan Pupil</span>
+                                    <span id="g1-pupil-val">50%</span>
+                                </div>
+                                <input id="g1-slider-pupil" type="range" min="10" max="100" value="50" oninput="onGame1SliderChange()">
+                            </div>
+                        </div>
+
+                        <button id="btn-start-g1" onclick="startGame1()" class="w-full btn-sci py-2.5 rounded-xl font-title text-sm font-bold bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20">
+                            🚀 Mulai Misi Fokus (20 Detik)
+                        </button>
+                    </div>
+
+                    <!-- CHALLENGE 2: EYE DETECTIVE QUIZ (5 Story Questions) -->
+                    <div id="game-challenge-2" class="hidden space-y-3">
+                        <!-- Top HUD: Question Number, Score, 3 Hearts -->
+                        <div class="flex items-center justify-between bg-slate-900/90 px-3 py-2 rounded-xl border border-cyan-400/30">
+                            <div class="text-xs font-bold text-cyan-300">
+                                Soal <span id="q-index">1</span> / 5
+                            </div>
+                            <div id="q-hearts" class="text-base tracking-widest">
+                                ❤️❤️❤️
+                            </div>
+                            <div class="text-xs font-bold text-amber-300">
+                                Skor: <span id="q-score">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Story Question Box -->
+                        <div id="quiz-question-container" class="space-y-2.5">
+                            <div class="p-3 rounded-xl bg-indigo-950/70 border border-indigo-400/40">
+                                <span id="q-badge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">Kasus Detektif #1</span>
+                                <p id="q-text" class="text-xs sm:text-sm text-white font-semibold mt-1.5 leading-relaxed">
+                                    Memuat soal...
+                                </p>
+                            </div>
+
+                            <!-- 4 Option Buttons -->
+                            <div id="q-options" class="grid grid-cols-1 gap-2">
+                                <!-- Generated by JS -->
+                            </div>
+
+                            <!-- Instant Explanation Feedback -->
+                            <div id="q-feedback" class="hidden p-3 rounded-xl text-xs leading-relaxed"></div>
+
+                            <button id="btn-next-q" onclick="nextQuizQuestion()" class="hidden w-full btn-sci py-2 rounded-xl font-title text-xs sm:text-sm font-bold bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950">
+                                Kasus Berikutnya ➡️
+                            </button>
+                        </div>
+
+                        <!-- Celebration Trophy Screen -->
+                        <div id="quiz-celebration" class="hidden text-center py-4 space-y-3">
+                            <div class="text-6xl animate-bounce">🏆</div>
+                            <h3 id="cel-title" class="font-title text-xl font-bold text-amber-300">Misi Selesai, Detektif Mata!</h3>
+                            <p id="cel-desc" class="text-xs text-slate-200 px-2">Kamu berhasil memecahkan misteri cara kerja mata manusia!</p>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-amber-400/40 inline-block px-6">
+                                <div class="text-[10px] text-slate-400 uppercase">Total Skor Akhir</div>
+                                <div id="cel-final-score" class="font-title text-2xl font-bold text-emerald-400">500 Poin</div>
+                            </div>
+                            <div>
+                                <button onclick="restartQuiz()" class="btn-sci px-5 py-2.5 rounded-xl font-title text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-lg">
+                                    🔄 Mainkan Kuis Lagi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- BOTTOM BAR: Status Hint & Watermark "Created by Cikgu Dessy" -->
+        <footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
+            <div class="glass-panel px-3 py-1.5 rounded-xl text-[11px] sm:text-xs text-sky-200/90 flex items-center gap-2 interactive-panel">
+                <span>💡</span>
+                <span id="bottom-hint">Tips: Geser layar untuk memutar bola mata 3D, cubit/scroll untuk memperbesar!</span>
+            </div>
+
+            <!-- Elegant Watermark -->
+            <div class="glass-panel px-4 py-1.5 rounded-xl border border-amber-300/40 shadow-lg interactive-panel flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span class="font-title text-xs sm:text-sm font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-cyan-200">
+                    ✨ Created by Cikgu Dessy
+                </span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MAIN JAVASCRIPT: AUDIO SYNTHESIZER, PROCEDURAL 3D EYE, LAB & MINI-GAMES   -->
+    <!-- ========================================================================= -->
+    <script>
+        /*************************************************************************
+         * 1. WEB AUDIO API PROCEDURAL SOUND SYNTHESIZER (NO EXTERNAL MP3)
+         *************************************************************************/
+        let audioCtx = null;
+        let isMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleMute() {
+            initAudio();
+            isMuted = !isMuted;
+            const icon = isMuted ? '🔇' : '🔊';
+            const btnM = document.getElementById('btn-audio-mobile');
+            const btnD = document.getElementById('btn-audio-desktop');
+            if (btnM) btnM.textContent = icon;
+            if (btnD) btnD.textContent = icon;
+            if (!isMuted) playSound('click');
+        }
+
+        function playSound(type) {
+            if (isMuted) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                // Futuristic soft pop/beep
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.09);
+            } else if (type === 'laser') {
+                // Sci-fi focus beam sound
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(680, now);
+                osc.frequency.exponentialRampToValueAtTime(320, now + 0.16);
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.17);
+            } else if (type === 'correct') {
+                // Happy major triad arpeggio (C5 - E5 - G5 - C6)
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.07);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * 0.07);
+                    osc.stop(now + idx * 0.07 + 0.26);
+                });
+            } else if (type === 'wrong') {
+                // Soft low buzzer
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(190, now);
+                osc.frequency.linearRampToValueAtTime(130, now + 0.28);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.31);
+            } else if (type === 'fanfare') {
+                // Victory fanfare sequence
+                const melody = [
+                    { f: 523.25, t: 0.0, d: 0.14 },
+                    { f: 659.25, t: 0.14, d: 0.14 },
+                    { f: 783.99, t: 0.28, d: 0.14 },
+                    { f: 1046.50, t: 0.42, d: 0.45 }
+                ];
+                melody.forEach(n => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(n.f, now + n.t);
+                    gain.gain.setValueAtTime(0.22, now + n.t);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + n.t);
+                    osc.stop(now + n.t + n.d + 0.02);
+                });
+            }
+        }
+
+        // Indonesian Web Speech API Narration
+        function speakText(text) {
+            if (isMuted || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'id-ID';
+            utter.rate = 1.0;
+            utter.pitch = 1.05;
+            window.speechSynthesis.speak(utter);
+        }
+
+        /*************************************************************************
+         * 2. ANATOMY DATA (7 HOTSPOTS FOR ELEMENTARY SCHOOL IPAS)
+         *************************************************************************/
+        const ANATOMY_PARTS = [
+            {
+                id: 'kornea',
+                name: 'Kornea',
+                subtitle: 'Jendela Bening Mata',
+                badge: 'Bagian Luar',
+                icon: '🛡️',
+                pos3D: new THREE.Vector3(2.58, 0.2, 0.2),
+                camPos: new THREE.Vector3(5.2, 1.2, 3.8),
+                camTarget: new THREE.Vector3(2.2, 0, 0),
+                desc: 'Kornea adalah lapisan kubah bening di paling depan mata. Tugasnya melindungi mata dari debu dan membelokkan (membiaskan) cahaya yang pertama kali masuk ke mata.',
+                analogy: 'Mirip seperti kaca pelindung paling depan pada lensa kamera HP yang bening dan kuat.',
+                fact: 'Kornea tidak memiliki pembuluh darah sama sekali supaya tetap jernih seperti kristal!'
+            },
+            {
+                id: 'iris',
+                name: 'Iris (Selaput Pelangi)',
+                subtitle: 'Pengatur Cahaya & Warna Mata',
+                badge: 'Bagian Depan',
+                icon: '🌈',
+                pos3D: new THREE.Vector3(2.08, 0.55, 0.45),
+                camPos: new THREE.Vector3(4.8, 1.3, 3.2),
+                camTarget: new THREE.Vector3(2.0, 0.2, 0),
+                desc: 'Iris adalah bagian berwarna indah pada mata (bisa cokelat, biru, atau hijau-kebiruan). Iris memiliki otot yang bisa bergerak membuka dan menutup untuk mengatur besar kecilnya Pupil.',
+                analogy: 'Sama seperti Diafragma (Aperture) pada kamera yang mengatur seberapa banyak cahaya boleh masuk.',
+                fact: 'Pola serat garis-garis pada Iris setiap manusia itu unik, bahkan lebih unik daripada sidik jari!'
+            },
+            {
+                id: 'pupil',
+                name: 'Pupil',
+                subtitle: 'Pintu Masuk Cahaya',
+                badge: 'Bagian Depan',
+                icon: '⚫',
+                pos3D: new THREE.Vector3(2.12, 0.0, 0.0),
+                camPos: new THREE.Vector3(4.6, 0.5, 2.5),
+                camTarget: new THREE.Vector3(2.0, 0, 0),
+                desc: 'Pupil adalah lubang bundar berwarna hitam di tengah-tengah Iris. Saat ruangan gelap, Pupil membesar agar banyak cahaya masuk. Saat terang, Pupil mengecil agar mata tidak silau.',
+                analogy: 'Seperti lubang bukaan tengah lensa kamera tempat lewatnya berkas cahaya.',
+                fact: 'Pupil terlihat berwarna hitam karena cahaya yang masuk ke dalamnya diserap oleh bagian dalam mata!'
+            },
+            {
+                id: 'lensa',
+                name: 'Lensa Mata (Kristalin)',
+                subtitle: 'Pemfokus Cahaya Pintar',
+                badge: 'Bagian Dalam',
+                icon: '🔍',
+                pos3D: new THREE.Vector3(1.42, 0.15, -0.1),
+                camPos: new THREE.Vector3(2.8, 1.5, 4.8),
+                camTarget: new THREE.Vector3(1.3, 0, 0),
+                desc: 'Lensa mata bersifat lentur dan bening. Lensa bisa menebal (cembung) saat kita membaca buku dari dekat, dan menipis (pipih) saat kita melihat pemandangan jauh agar bayangan jatuh tepat di Retina.',
+                analogy: 'Persis seperti Lensa Auto-Focus pada kamera yang bergerak maju-mundur agar foto tidak buram!',
+                fact: 'Kemampuan lensa mata untuk menebal dan menipis secara otomatis disebut Daya Akomodasi Mata.'
+            },
+            {
+                id: 'siliaris',
+                name: 'Otot Siliaris',
+                subtitle: 'Otot Penggerak Lensa',
+                badge: 'Bagian Dalam',
+                icon: '💪',
+                pos3D: new THREE.Vector3(1.42, 1.15, 0.0),
+                camPos: new THREE.Vector3(2.5, 2.4, 4.6),
+                camTarget: new THREE.Vector3(1.4, 0.8, 0),
+                desc: 'Otot Siliaris adalah cincin otot halus yang memegang Lensa Mata. Otot inilah yang menarik dan mendorong lensa mata agar bisa memipih atau mencembung.',
+                analogy: 'Mirip seperti motor penggerak otomatis di dalam lensa kamera yang memutar fokus.',
+                fact: 'Saat kita terlalu lama menatap layar dekat, otot siliaris terus bekerja keras sehingga mata terasa lelah.'
+            },
+            {
+                id: 'retina',
+                name: 'Retina (Selaput Jala)',
+                subtitle: 'Layar Penangkap Cahaya',
+                badge: 'Dinding Belakang',
+                icon: '🎞️',
+                pos3D: new THREE.Vector3(-1.85, 0.5, -0.2),
+                camPos: new THREE.Vector3(-1.2, 1.8, 5.2),
+                camTarget: new THREE.Vector3(-1.5, 0, 0),
+                desc: 'Retina adalah lapisan paling dalam di dinding belakang mata yang penuh dengan jutaan sel peka cahaya (sel batang untuk gelap-terang dan sel kerucut untuk warna).',
+                analogy: 'Sama seperti Sensor Digital (atau film negatif) di bagian belakang kamera tempat terbentuknya gambar.',
+                fact: 'Bayangan yang ditangkap Retina sebenarnya terbalik, lalu otak kitalah yang membalikkannya menjadi tegak!'
+            },
+            {
+                id: 'saraf',
+                name: 'Saraf Optik',
+                subtitle: 'Kabel Pengirim Pesan ke Otak',
+                badge: 'Bagian Belakang',
+                icon: '⚡',
+                pos3D: new THREE.Vector3(-2.75, -0.35, -0.1),
+                camPos: new THREE.Vector3(-3.8, 1.4, 4.6),
+                camTarget: new THREE.Vector3(-2.4, -0.3, 0),
+                desc: 'Saraf Optik adalah kumpulan jutaan serat saraf yang menghubungkan Retina dengan Otak. Tugasnya mengubah gambar cahaya menjadi sinyal listrik dan mengirimkannya ke otak.',
+                analogy: 'Seperti kabel data berkecepatan super tinggi yang mengirim foto dari sensor kamera ke layar komputer.',
+                fact: 'Kecepatan pengiriman sinyal dari Saraf Optik ke otak sangat cepat, sehingga kita bisa melihat seketika!'
+            }
+        ];
+
+        let currentSelectedPart = ANATOMY_PARTS[0];
+
+        /*************************************************************************
+         * 3. PROCEDURAL TEXTURES (REALISTIC IRIS FIBERS & SCLERA BLOOD VESSELS)
+         *************************************************************************/
+        function createIrisTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const cx = 256, cy = 256;
+
+            // Base radial gradient inspired by realistic blue-teal & amber central heterochromia eye
+            const grad = ctx.createRadialGradient(cx, cy, 40, cx, cy, 250);
+            grad.addColorStop(0.0, '#1e1b18');
+            grad.addColorStop(0.22, '#854d0e'); // Warm amber/gold inner ring around pupil
+            grad.addColorStop(0.38, '#ca8a04');
+            grad.addColorStop(0.52, '#0f766e'); // Teal-blue mid stroma
+            grad.addColorStop(0.82, '#155e75'); // Deep cyan-blue outer iris
+            grad.addColorStop(0.95, '#083344'); // Dark limbal ring
+            grad.addColorStop(1.0, '#041f2e');
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Draw intricate radial iris stroma fibers
+            for (let i = 0; i < 420; i++) {
+                const angle = (i / 420) * Math.PI * 2 + (Math.random() * 0.03);
+                const innerR = 45 + Math.random() * 25;
+                const outerR = 160 + Math.random() * 82;
+
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+                const midR = (innerR + outerR) * 0.5;
+                const waveAngle = angle + (Math.random() - 0.5) * 0.08;
+                ctx.quadraticCurveTo(
+                    cx + Math.cos(waveAngle) * midR,
+                    cy + Math.sin(waveAngle) * midR,
+                    cx + Math.cos(angle) * outerR,
+                    cy + Math.sin(angle) * outerR
+                );
+
+                if (i % 3 === 0) {
+                    ctx.strokeStyle = 'rgba(186, 230, 253, 0.28)';
+                    ctx.lineWidth = 1.6;
+                } else if (i % 4 === 0) {
+                    ctx.strokeStyle = 'rgba(253, 224, 71, 0.22)';
+                    ctx.lineWidth = 1.2;
+                } else {
+                    ctx.strokeStyle = 'rgba(8, 47, 73, 0.35)';
+                    ctx.lineWidth = 2.0;
+                }
+                ctx.stroke();
+            }
+
+            // Inner golden collarette fibers
+            for (let i = 0; i < 160; i++) {
+                const angle = (i / 160) * Math.PI * 2;
+                const r1 = 52 + Math.random() * 12;
+                const r2 = 105 + Math.random() * 25;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
+                ctx.lineTo(cx + Math.cos(angle) * r2, cy + Math.sin(angle) * r2);
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.35)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createScleraTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Ivory-white organic sclera background
+            const bgGrad = ctx.createLinearGradient(0, 0, 1024, 0);
+            bgGrad.addColorStop(0, '#f1f5f9');
+            bgGrad.addColorStop(0.5, '#f8fafc');
+            bgGrad.addColorStop(1, '#e2e8f0');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // Organic branching blood capillaries on sclera
+            function drawVessel(x, y, angle, length, width, depth) {
+                if (depth <= 0 || width < 0.3) return;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                const nx = x + Math.cos(angle) * length;
+                const ny = y + Math.sin(angle) * length;
+                const cx = (x + nx) / 2 + (Math.random() - 0.5) * 18;
+                const cy = (y + ny) / 2 + (Math.random() - 0.5) * 18;
+                ctx.quadraticCurveTo(cx, cy, nx, ny);
+                ctx.strokeStyle = `rgba(185, 28, 28, ${0.15 + depth * 0.08})`;
+                ctx.lineWidth = width;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                const branches = Math.random() > 0.35 ? 2 : 1;
+                for (let b = 0; b < branches; b++) {
+                    const nextAngle = angle + (Math.random() - 0.5) * 0.85;
+                    drawVessel(nx, ny, nextAngle, length * 0.78, width * 0.72, depth - 1);
+                }
+            }
+
+            for (let i = 0; i < 28; i++) {
+                const startX = Math.random() * 1024;
+                const startY = Math.random() * 512;
+                const startAngle = Math.random() * Math.PI * 2;
+                drawVessel(startX, startY, startAngle, 42, 2.2, 5);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        /*************************************************************************
+         * 4. THREE.JS SCENE, PROCEDURAL 3D EYE ANATOMY & LIGHT RAY PARTICLES
+         *************************************************************************/
+        let scene, camera, renderer, controls;
+        let eyeGroup, frontAssemblyGroup, lensMesh, pupilMesh, irisMesh, corneaMesh;
+        let scleraWholeGroup, scleraCutGroup;
+        let targetObjectGroup, correctiveGlassesGroup;
+        let rayLinesGroup, rayParticles = [];
+        let victoryStarsGroup, victoryStars = [];
+        let ambientLight, mainDirLight, frontSpotLight, rimLight;
+
+        // Interactive states
+        let currentMode = 1; // 1: Anatomy, 2: Lab, 3: Game
+        let isCrossSection = true;
+        let cameraTween = null;
+
+        // Lab & Optical states
+        let labLightLevel = 50;      // 5..100
+        let labObjectDistance = 60;  // 15..100
+        let visionCondition = 'normal'; // 'normal' | 'miopi' | 'hipermetropi'
+        let glassesEquipped = false;
+
+        // Computed optical parameters
+        let currentPupilScale = 1.0;
+        let currentLensThickness = 1.0;
+        let currentFocalX = -1.92; // -1.92 is exact Retina focal point!
+
+        function initThreeScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x060d1a, 0.032);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(1.5, 1.8, 8.2);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.localClippingEnabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.maxDistance = 16;
+            controls.minDistance = 3.2;
+            controls.target.set(0, 0, 0);
+
+            // Lighting Setup
+            ambientLight = new THREE.AmbientLight(0x93c5fd, 0.65);
+            scene.add(ambientLight);
+
+            mainDirLight = new THREE.DirectionalLight(0xffffff, 1.15);
+            mainDirLight.position.set(7, 9, 8);
+            scene.add(mainDirLight);
+
+            frontSpotLight = new THREE.PointLight(0x38bdf8, 0.9, 20);
+            frontSpotLight.position.set(6, 1, 3);
+            scene.add(frontSpotLight);
+
+            rimLight = new THREE.DirectionalLight(0xfde047, 0.45);
+            rimLight.position.set(-7, -4, -6);
+            scene.add(rimLight);
+
+            // Background floating sci-fi particles
+            createLabBackgroundStars();
+
+            // Build Procedural 3D Eye Model (oriented along +X axis: Front Cornea at +X, Optic Nerve at -X)
+            buildProceduralEye();
+
+            // Build 3D Target Object (Red Apple with Leaf at +X in front of eye)
+            buildTargetApple3D();
+
+            // Build Corrective Glasses 3D (Concave/Convex lens in front of cornea)
+            buildCorrectiveGlasses3D();
+
+            // Build Dynamic Light Rays & Moving Photon Particles
+            buildLightRaysSystem();
+
+            // Build Victory Star Burst Particles for Mini-Game
+            buildVictoryParticles();
+
+            // Create HTML Hotspot Markers for Mode 1
+            createHotspotDOMElements();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createLabBackgroundStars() {
+            const geo = new THREE.BufferGeometry();
+            const count = 260;
+            const pos = new Float32Array(count * 3);
+            for (let i = 0; i < count * 3; i += 3) {
+                pos[i] = (Math.random() - 0.5) * 45;
+                pos[i + 1] = (Math.random() - 0.5) * 30;
+                pos[i + 2] = (Math.random() - 0.5) * 35 - 8;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({
+                color: 0x38bdf8,
+                size: 0.12,
+                transparent: true,
+                opacity: 0.45
+            });
+            const points = new THREE.Points(geo, mat);
+            scene.add(points);
+        }
+
+        function buildProceduralEye() {
+            eyeGroup = new THREE.Group();
+            scene.add(eyeGroup);
+
+            const scleraTex = createScleraTexture();
+            const irisTex = createIrisTexture();
+
+            // 1A. OUTER SHELL WHEN FULL (Whole Sclera)
+            scleraWholeGroup = new THREE.Group();
+            const scleraFullGeo = new THREE.SphereGeometry(2.1, 48, 48, 0, Math.PI * 2, 0.34, Math.PI - 0.34);
+            scleraFullGeo.rotateZ(-Math.PI / 2); // Opening at +X
+            const scleraMat = new THREE.MeshPhongMaterial({
+                map: scleraTex,
+                color: 0xffffff,
+                specular: 0x334155,
+                shininess: 35,
+                side: THREE.DoubleSide
+            });
+            const scleraFullMesh = new THREE.Mesh(scleraFullGeo, scleraMat);
+            scleraWholeGroup.add(scleraFullMesh);
+            eyeGroup.add(scleraWholeGroup);
+
+            // 1B. CROSS-SECTION SHELLS (Cutaway half-spheres showing Sclera, Choroid, Retina & Vitreous)
+            scleraCutGroup = new THREE.Group();
+
+            // Outer Sclera Half (Back hemisphere Z <= 0)
+            const scleraHalfGeo = new THREE.SphereGeometry(2.1, 48, 48, Math.PI, Math.PI, 0.34, Math.PI - 0.34);
+            scleraHalfGeo.rotateZ(-Math.PI / 2);
+            const scleraHalfMesh = new THREE.Mesh(scleraHalfGeo, scleraMat);
+            scleraCutGroup.add(scleraHalfMesh);
+
+            // Middle Choroid Layer (Vascular dark red-violet layer)
+            const choroidGeo = new THREE.SphereGeometry(2.03, 48, 48, Math.PI, Math.PI, 0.35, Math.PI - 0.35);
+            choroidGeo.rotateZ(-Math.PI / 2);
+            const choroidMat = new THREE.MeshPhongMaterial({
+                color: 0x7f1d1d,
+                emissive: 0x2a0808,
+                side: THREE.DoubleSide
+            });
+            scleraCutGroup.add(new THREE.Mesh(choroidGeo, choroidMat));
+
+            // Inner Retina Layer (Warm orange-rose photosensitive inner lining)
+            const retinaGeo = new THREE.SphereGeometry(1.96, 48, 48, Math.PI, Math.PI, 0.37, Math.PI - 0.37);
+            retinaGeo.rotateZ(-Math.PI / 2);
+            const retinaMat = new THREE.MeshPhongMaterial({
+                color: 0xf97316,
+                emissive: 0x431407,
+                shininess: 25,
+                side: THREE.DoubleSide
+            });
+            const retinaMesh = new THREE.Mesh(retinaGeo, retinaMat);
+            scleraCutGroup.add(retinaMesh);
+
+            // Cross-section Rim Wall (Shows thickness of Sclera + Choroid + Retina along cut plane Z=0)
+            const rimRingGeo = new THREE.RingGeometry(1.95, 2.1, 48, 1, 0.35, Math.PI * 2 - 0.7);
+            const rimRingMat = new THREE.MeshBasicMaterial({
+                color: 0xfca5a5,
+                side: THREE.DoubleSide
+            });
+            const rimRingMesh = new THREE.Mesh(rimRingGeo, rimRingMat);
+            scleraCutGroup.add(rimRingMesh);
+
+            // Fovea / Yellow Spot target marker at back of Retina (-1.94, 0, 0)
+            const foveaGeo = new THREE.SphereGeometry(0.16, 20, 20);
+            const foveaMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+            const foveaMesh = new THREE.Mesh(foveaGeo, foveaMat);
+            foveaMesh.position.set(-1.94, 0, 0);
+            scleraCutGroup.add(foveaMesh);
+
+            // Vitreous Humor (Translucent gel inside eye)
+            const vitreousGeo = new THREE.SphereGeometry(1.91, 36, 36, Math.PI, Math.PI, 0.38, Math.PI - 0.38);
+            vitreousGeo.rotateZ(-Math.PI / 2);
+            const vitreousMat = new THREE.MeshPhongMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.14,
+                shininess: 90,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            scleraCutGroup.add(new THREE.Mesh(vitreousGeo, vitreousMat));
+
+            eyeGroup.add(scleraCutGroup);
+
+            // 2. FRONT EYE ASSEMBLY: Limbal Ring, Iris, Pupil, Cornea
+            frontAssemblyGroup = new THREE.Group();
+            eyeGroup.add(frontAssemblyGroup);
+
+            // Metallic/Dark Limbal Ring (Border between Sclera and Cornea)
+            const limbusGeo = new THREE.TorusGeometry(0.72, 0.045, 20, 48);
+            limbusGeo.rotateY(Math.PI / 2);
+            const limbusMat = new THREE.MeshPhongMaterial({
+                color: 0x334155,
+                specular: 0x94a3b8,
+                shininess: 80
+            });
+            const limbusMesh = new THREE.Mesh(limbusGeo, limbusMat);
+            limbusMesh.position.set(1.97, 0, 0);
+            frontAssemblyGroup.add(limbusMesh);
+
+            // Iris Disc with Procedural Fiber Texture
+            const irisGeo = new THREE.RingGeometry(0.22, 0.71, 48, 2);
+            irisGeo.rotateY(Math.PI / 2);
+            const irisMat = new THREE.MeshPhongMaterial({
+                map: irisTex,
+                specular: 0x38bdf8,
+                shininess: 40,
+                side: THREE.DoubleSide
+            });
+            irisMesh = new THREE.Mesh(irisGeo, irisMat);
+            irisMesh.position.set(2.01, 0, 0);
+            frontAssemblyGroup.add(irisMesh);
+
+            // Pupil (Deep black center disc that dilates/constricts)
+            const pupilGeo = new THREE.CircleGeometry(0.24, 36);
+            pupilGeo.rotateY(Math.PI / 2);
+            const pupilMat = new THREE.MeshBasicMaterial({
+                color: 0x020617,
+                side: THREE.DoubleSide
+            });
+            pupilMesh = new THREE.Mesh(pupilGeo, pupilMat);
+            pupilMesh.position.set(2.025, 0, 0);
+            frontAssemblyGroup.add(pupilMesh);
+
+            // Cornea (Convex transparent glossy dome at +X)
+            const corneaGeo = new THREE.SphereGeometry(0.84, 36, 36, 0, Math.PI * 2, 0, 1.05);
+            corneaGeo.rotateZ(-Math.PI / 2);
+            const corneaMat = new THREE.MeshPhongMaterial({
+                color: 0xe0f2fe,
+                specular: 0xffffff,
+                shininess: 140,
+                transparent: true,
+                opacity: 0.32,
+                depthWrite: false
+            });
+            corneaMesh = new THREE.Mesh(corneaGeo, corneaMat);
+            corneaMesh.position.set(1.62, 0, 0);
+            frontAssemblyGroup.add(corneaMesh);
+
+            // 3. CRYSTALLINE LENS & CILIARY MUSCLES (Inside behind Iris at X = 1.42)
+            const lensGeo = new THREE.SphereGeometry(0.56, 36, 36);
+            const lensMat = new THREE.MeshPhongMaterial({
+                color: 0xbae6fd,
+                emissive: 0x0c4a6e,
+                emissiveIntensity: 0.25,
+                specular: 0xffffff,
+                shininess: 120,
+                transparent: true,
+                opacity: 0.76
+            });
+            lensMesh = new THREE.Mesh(lensGeo, lensMat);
+            lensMesh.position.set(1.42, 0, 0);
+            lensMesh.scale.set(0.45, 1.0, 1.0); // Biconvex shape compressed along X
+            eyeGroup.add(lensMesh);
+
+            // Ciliary Muscle Ring & Suspensory Ligaments
+            const ciliaryGeo = new THREE.TorusGeometry(0.95, 0.11, 16, 40);
+            ciliaryGeo.rotateY(Math.PI / 2);
+            const ciliaryMat = new THREE.MeshPhongMaterial({
+                color: 0xf43f5e,
+                emissive: 0x4c0519,
+                shininess: 30
+            });
+            const ciliaryMesh = new THREE.Mesh(ciliaryGeo, ciliaryMat);
+            ciliaryMesh.position.set(1.42, 0, 0);
+            eyeGroup.add(ciliaryMesh);
+
+            // Suspensory ligaments (zonules connecting ciliary muscle to lens)
+            const ligMat = new THREE.LineBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.65 });
+            for (let i = 0; i < 16; i++) {
+                const a = (i / 16) * Math.PI * 2;
+                const pts = [
+                    new THREE.Vector3(1.42, Math.cos(a) * 0.54, Math.sin(a) * 0.54),
+                    new THREE.Vector3(1.42, Math.cos(a) * 0.90, Math.sin(a) * 0.90)
+                ];
+                const lGeo = new THREE.BufferGeometry().setFromPoints(pts);
+                eyeGroup.add(new THREE.Line(lGeo, ligMat));
+            }
+
+            // 4. OPTIC NERVE & RETINAL VESSELS AT BACK (-X)
+            const nerveCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-1.95, -0.18, 0),
+                new THREE.Vector3(-2.55, -0.28, -0.05),
+                new THREE.Vector3(-3.25, -0.52, -0.15),
+                new THREE.Vector3(-3.85, -0.68, -0.20)
+            ]);
+            const nerveGeo = new THREE.TubeGeometry(nerveCurve, 24, 0.34, 20, false);
+            const nerveMat = new THREE.MeshPhongMaterial({
+                color: 0xfde68a,
+                emissive: 0x451a03,
+                shininess: 25
+            });
+            const nerveMesh = new THREE.Mesh(nerveGeo, nerveMat);
+            eyeGroup.add(nerveMesh);
+
+            // Central Retinal Artery (Red) & Vein (Blue) inside Optic Nerve
+            const arteryGeo = new THREE.TubeGeometry(nerveCurve, 20, 0.07, 10, false);
+            const arteryMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+            const arteryMesh = new THREE.Mesh(arteryGeo, arteryMat);
+            arteryMesh.position.set(0, 0.09, 0.12);
+            eyeGroup.add(arteryMesh);
+
+            const veinMesh = new THREE.Mesh(arteryGeo, new THREE.MeshBasicMaterial({ color: 0x3b82f6 }));
+            veinMesh.position.set(0, -0.07, 0.12);
+            eyeGroup.add(veinMesh);
+
+            updateCrossSectionVisuals();
+        }
+
+        function buildTargetApple3D() {
+            targetObjectGroup = new THREE.Group();
+
+            // Red Apple Body
+            const appleGeo = new THREE.SphereGeometry(0.42, 24, 24);
+            appleGeo.scale(0.95, 1.0, 0.95);
+            const appleMat = new THREE.MeshPhongMaterial({
+                color: 0xef4444,
+                emissive: 0x450a0a,
+                specular: 0xffffff,
+                shininess: 90
+            });
+            const appleMesh = new THREE.Mesh(appleGeo, appleMat);
+            targetObjectGroup.add(appleMesh);
+
+            // Stem
+            const stemGeo = new THREE.CylinderGeometry(0.03, 0.05, 0.25, 8);
+            const stemMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+            const stemMesh = new THREE.Mesh(stemGeo, stemMat);
+            stemMesh.position.set(0, 0.45, 0);
+            targetObjectGroup.add(stemMesh);
+
+            // Green Leaf
+            const leafGeo = new THREE.SphereGeometry(0.14, 12, 12);
+            leafGeo.scale(1.6, 0.35, 0.8);
+            const leafMat = new THREE.MeshLambertMaterial({ color: 0x22c55e });
+            const leafMesh = new THREE.Mesh(leafGeo, leafMat);
+            leafMesh.position.set(0.14, 0.48, 0);
+            leafMesh.rotation.z = 0.4;
+            targetObjectGroup.add(leafMesh);
+
+            targetObjectGroup.position.set(5.2, 0, 0);
+            targetObjectGroup.visible = false;
+            scene.add(targetObjectGroup);
+        }
+
+        function buildCorrectiveGlasses3D() {
+            correctiveGlassesGroup = new THREE.Group();
+
+            // Spectacle Frame Ring
+            const frameGeo = new THREE.TorusGeometry(0.95, 0.05, 16, 40);
+            frameGeo.rotateY(Math.PI / 2);
+            const frameMat = new THREE.MeshPhongMaterial({ color: 0x38bdf8, shininess: 100 });
+            correctiveGlassesGroup.add(new THREE.Mesh(frameGeo, frameMat));
+
+            // Corrective Optical Glass Disc
+            const glassGeo = new THREE.SphereGeometry(0.92, 32, 32);
+            glassGeo.scale(0.14, 1.0, 1.0);
+            const glassMat = new THREE.MeshPhongMaterial({
+                color: 0x7dd3fc,
+                transparent: true,
+                opacity: 0.42,
+                shininess: 130
+            });
+            const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+            glassMesh.name = 'correctiveGlassMesh';
+            correctiveGlassesGroup.add(glassMesh);
+
+            correctiveGlassesGroup.position.set(3.05, 0, 0);
+            correctiveGlassesGroup.visible = false;
+            scene.add(correctiveGlassesGroup);
+        }
+
+        function buildLightRaysSystem() {
+            rayLinesGroup = new THREE.Group();
+            scene.add(rayLinesGroup);
+
+            // Create 5 golden light beams (Upper, Mid-Upper, Center, Mid-Lower, Lower)
+            const rayOffsets = [0.42, 0.21, 0.0, -0.21, -0.42];
+            const lineMat = new THREE.LineBasicMaterial({
+                color: 0xfde047,
+                transparent: true,
+                opacity: 0.82
+            });
+
+            rayOffsets.forEach((offsetY) => {
+                const pts = [
+                    new THREE.Vector3(5.2, offsetY * 0.5, 0),
+                    new THREE.Vector3(3.05, offsetY * 0.9, 0),
+                    new THREE.Vector3(2.35, offsetY, 0),
+                    new THREE.Vector3(1.42, offsetY * 0.78, 0),
+                    new THREE.Vector3(-1.92, 0, 0),
+                    new THREE.Vector3(-2.3, -offsetY * 0.35, 0)
+                ];
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const line = new THREE.Line(geo, lineMat);
+                line.userData = { offsetY };
+                rayLinesGroup.add(line);
+
+                // Create 3 moving photon spheres per ray
+                for (let p = 0; p < 3; p++) {
+                    const pGeo = new THREE.SphereGeometry(0.055, 10, 10);
+                    const pMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+                    const pMesh = new THREE.Mesh(pGeo, pMat);
+                    rayLinesGroup.add(pMesh);
+                    rayParticles.push({
+                        mesh: pMesh,
+                        line: line,
+                        progress: (p / 3) + Math.random() * 0.15
+                    });
+                }
+            });
+
+            rayLinesGroup.visible = false;
+        }
+
+        function buildVictoryParticles() {
+            victoryStarsGroup = new THREE.Group();
+            scene.add(victoryStarsGroup);
+
+            const starGeo = new THREE.OctahedronGeometry(0.12, 0);
+            for (let i = 0; i < 35; i++) {
+                const mat = new THREE.MeshBasicMaterial({
+                    color: i % 2 === 0 ? 0xfde047 : 0x38bdf8
+                });
+                const mesh = new THREE.Mesh(starGeo, mat);
+                victoryStarsGroup.add(mesh);
+                victoryStars.push({
+                    mesh,
+                    vel: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.14,
+                        (Math.random() - 0.5) * 0.14,
+                        (Math.random() - 0.5) * 0.14
+                    )
+                });
+            }
+            victoryStarsGroup.visible = false;
+        }
+
+        let victoryBurstTimer = 0;
+        function triggerVictoryBurst(originVec) {
+            victoryStarsGroup.position.copy(originVec || new THREE.Vector3(-1.92, 0, 0));
+            victoryStarsGroup.visible = true;
+            victoryBurstTimer = 70;
+            victoryStars.forEach(s => {
+                s.mesh.position.set(0, 0, 0);
+            });
+        }
+
+        /*************************************************************************
+         * 5. CROSS-SECTION (X-RAY) & CAMERA TRANSITIONS
+         *************************************************************************/
+        function toggleCrossSection() {
+            playSound('click');
+            isCrossSection = !isCrossSection;
+            updateCrossSectionVisuals();
+        }
+
+        function updateCrossSectionVisuals() {
+            if (scleraWholeGroup && scleraCutGroup) {
+                scleraWholeGroup.visible = !isCrossSection;
+                scleraCutGroup.visible = isCrossSection;
+            }
+            const btn = document.getElementById('btn-xray');
+            const lbl = document.getElementById('xray-label');
+            if (isCrossSection) {
+                lbl.textContent = 'Mode Irisan: AKTIF';
+                btn.className = 'btn-sci px-3 py-1.5 rounded-xl font-title text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-amber-500/25 border border-amber-400 text-amber-300';
+            } else {
+                lbl.textContent = 'Mode Irisan: UTUH';
+                btn.className = 'btn-sci px-3 py-1.5 rounded-xl font-title text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-slate-800/80 border border-slate-600 text-slate-300';
+            }
+        }
+
+        function animateCameraTo(targetPos, targetLookAt, durationMs = 750) {
+            cameraTween = {
+                startPos: camera.position.clone(),
+                endPos: targetPos.clone(),
+                startTarget: controls.target.clone(),
+                endTarget: targetLookAt.clone(),
+                startTime: performance.now(),
+                duration: durationMs
+            };
+        }
+
+        function resetCameraView() {
+            playSound('click');
+            if (currentMode === 1) {
+                animateCameraTo(new THREE.Vector3(1.5, 1.8, 8.2), new THREE.Vector3(0, 0, 0));
+            } else {
+                animateCameraTo(new THREE.Vector3(1.2, 0.8, 8.8), new THREE.Vector3(1.0, 0, 0));
+            }
+        }
+
+        /*************************************************************************
+         * 6. MODE 1: 7 ANATOMY HOTSPOTS & KID-FRIENDLY DETAIL PANEL
+         *************************************************************************/
+        let hotspotDOMs = [];
+
+        function createHotspotDOMElements() {
+            const container = document.getElementById('hotspots-container');
+            const listContainer = document.getElementById('anatomy-list-buttons');
+            container.innerHTML = '';
+            listContainer.innerHTML = '';
+            hotspotDOMs = [];
+
+            ANATOMY_PARTS.forEach((part, index) => {
+                // 3D Overlay Pin
+                const el = document.createElement('div');
+                el.className = 'hotspot-marker';
+                el.innerHTML = `
+                    <div class="pulse-ring"></div>
+                    <div class="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border-2 border-cyan-400 text-white shadow-lg shadow-cyan-500/30">
+                        <span class="text-xs font-bold text-cyan-300">${index + 1}</span>
+                        <span class="font-title text-xs font-semibold whitespace-nowrap">${part.name.split(' ')[0]}</span>
+                    </div>
+                `;
+                el.onclick = () => selectAnatomyPart(part.id, true);
+                container.appendChild(el);
+                hotspotDOMs.push({ part, element: el });
+
+                // Sidebar Quick Button
+                const btn = document.createElement('button');
+                btn.id = `btn-part-${part.id}`;
+                btn.className = 'btn-sci text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-slate-800/70 hover:bg-cyan-500/20 border border-slate-700 text-slate-200';
+                btn.innerHTML = `<span>${part.icon}</span> <span class="truncate">${index + 1}. ${part.name}</span>`;
+                btn.onclick = () => selectAnatomyPart(part.id, true);
+                listContainer.appendChild(btn);
+            });
+
+            // Initialize with first part without zooming
+            selectAnatomyPart('kornea', false);
+        }
+
+        function selectAnatomyPart(partId, shouldZoom = true) {
+            const part = ANATOMY_PARTS.find(p => p.id === partId);
+            if (!part) return;
+            currentSelectedPart = part;
+
+            if (shouldZoom) {
+                playSound('click');
+                // Automatically enable cross-section if selecting internal part
+                if (['lensa', 'siliaris', 'retina', 'saraf'].includes(part.id) && !isCrossSection) {
+                    isCrossSection = true;
+                    updateCrossSectionVisuals();
+                }
+                animateCameraTo(part.camPos, part.camTarget, 700);
+            }
+
+            // Update UI Card
+            document.getElementById('detail-icon').textContent = part.icon;
+            document.getElementById('detail-badge').textContent = part.badge;
+            document.getElementById('detail-title').textContent = `${part.name} — ${part.subtitle}`;
+            document.getElementById('detail-desc').textContent = part.desc;
+            document.getElementById('detail-analogy').innerHTML = part.analogy;
+            document.getElementById('detail-fact').innerHTML = `<strong>Tahukah Kamu?</strong> ${part.fact}`;
+
+            // Highlight active button
+            ANATOMY_PARTS.forEach(p => {
+                const b = document.getElementById(`btn-part-${p.id}`);
+                if (!b) return;
+                if (p.id === part.id) {
+                    b.className = 'btn-sci text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-cyan-500/30 border border-cyan-300 text-white shadow-md';
+                } else {
+                    b.className = 'btn-sci text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-slate-800/70 hover:bg-cyan-500/20 border border-slate-700 text-slate-200';
+                }
+            });
+        }
+
+        function speakCurrentPart() {
+            playSound('click');
+            if (!currentSelectedPart) return;
+            const textToRead = `${currentSelectedPart.name}. ${currentSelectedPart.desc} Analogi kameranya: ${currentSelectedPart.analogy}`;
+            speakText(textToRead);
+        }
+
+        function updateHotspotsScreenPositions() {
+            const container = document.getElementById('hotspots-container');
+            if (currentMode !== 1) {
+                container.style.display = 'none';
+                return;
+            }
+            container.style.display = 'block';
+
+            const widthHalf = window.innerWidth / 2;
+            const heightHalf = window.innerHeight / 2;
+
+            hotspotDOMs.forEach(({ part, element }) => {
+                const worldPos = part.pos3D.clone();
+                eyeGroup.localToWorld(worldPos);
+                const projected = worldPos.project(camera);
+
+                if (projected.z > 1) {
+                    element.style.display = 'none';
+                    return;
+                }
+                const x = (projected.x * widthHalf) + widthHalf;
+                const y = -(projected.y * heightHalf) + heightHalf;
+
+                element.style.display = 'block';
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+            });
+        }
+
+        /*************************************************************************
+         * 7. MODE 2: LIGHT INTENSITY, LENS ACCOMMODATION & DEFECT SIMULATION
+         *************************************************************************/
+        function onLabLightChange(val) {
+            labLightLevel = parseFloat(val);
+            const label = document.getElementById('label-light-val');
+            if (labLightLevel < 30) {
+                label.textContent = `Redup/Gelap (${Math.round(labLightLevel)}%)`;
+            } else if (labLightLevel > 75) {
+                label.textContent = `Terang Benderang (${Math.round(labLightLevel)}%)`;
+            } else {
+                label.textContent = `Sedang (${Math.round(labLightLevel)}%)`;
+            }
+            updateOpticalSimulation();
+        }
+
+        function onLabDistanceChange(val) {
+            labObjectDistance = parseFloat(val);
+            const label = document.getElementById('label-dist-val');
+            if (labObjectDistance < 38) {
+                label.textContent = 'Dekat (25 cm)';
+            } else if (labObjectDistance > 75) {
+                label.textContent = 'Jauh (Tak Terhingga)';
+            } else {
+                label.textContent = 'Sedang (1-2 m)';
+            }
+            playSound('laser');
+            updateOpticalSimulation();
+        }
+
+        function setVisionCondition(cond) {
+            playSound('click');
+            visionCondition = cond;
+            glassesEquipped = false;
+
+            // Update buttons UI
+            const btnNorm = document.getElementById('btn-cond-normal');
+            const btnMiopi = document.getElementById('btn-cond-miopi');
+            const btnHiper = document.getElementById('btn-cond-hiper');
+            const glassesBox = document.getElementById('glasses-action-box');
+            const glassesText = document.getElementById('glasses-btn-text');
+
+            btnNorm.className = cond === 'normal'
+                ? 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 shadow-md'
+                : 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600';
+
+            btnMiopi.className = cond === 'miopi'
+                ? 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-amber-400 text-slate-950 shadow-md'
+                : 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600';
+
+            btnHiper.className = cond === 'hipermetropi'
+                ? 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-pink-400 text-slate-950 shadow-md'
+                : 'btn-sci py-2 px-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600';
+
+            if (cond === 'normal') {
+                glassesBox.classList.add('hidden');
+            } else {
+                glassesBox.classList.remove('hidden');
+                if (cond === 'miopi') {
+                    // Move object far to demonstrate myopia clearly
+                    document.getElementById('slider-distance').value = 90;
+                    labObjectDistance = 90;
+                    document.getElementById('label-dist-val').textContent = 'Jauh';
+                    glassesText.textContent = '👓 Pasang Kacamata Lensa Cekung (Minus / -)';
+                } else if (cond === 'hipermetropi') {
+                    // Move object close to demonstrate hyperopia clearly
+                    document.getElementById('slider-distance').value = 22;
+                    labObjectDistance = 22;
+                    document.getElementById('label-dist-val').textContent = 'Dekat';
+                    glassesText.textContent = '👓 Pasang Kacamata Lensa Cembung (Plus / +)';
+                }
+            }
+
+            updateOpticalSimulation();
+        }
+
+        function toggleCorrectiveGlasses() {
+            playSound('correct');
+            glassesEquipped = !glassesEquipped;
+            const glassesText = document.getElementById('glasses-btn-text');
+            if (visionCondition === 'miopi') {
+                glassesText.textContent = glassesEquipped
+                    ? '✅ Kacamata Cekung (-) Terpasang (Lepas)'
+                    : '👓 Pasang Kacamata Lensa Cekung (Minus / -)';
+            } else if (visionCondition === 'hipermetropi') {
+                glassesText.textContent = glassesEquipped
+                    ? '✅ Kacamata Cembung (+) Terpasang (Lepas)'
+                    : '👓 Pasang Kacamata Lensa Cembung (Plus / +)';
+            }
+            updateOpticalSimulation();
+        }
+
+        function updateOpticalSimulation() {
+            // 1. Lighting & Pupil Reflex
+            // Light 5 -> 100 maps to Pupil scale 1.55 (dilated) -> 0.52 (constricted)
+            const normLight = (labLightLevel - 5) / 95;
+            currentPupilScale = 1.55 - normLight * 1.03;
+
+            if (ambientLight && mainDirLight) {
+                ambientLight.intensity = 0.28 + normLight * 0.85;
+                mainDirLight.intensity = 0.45 + normLight * 1.35;
+            }
+
+            // 2. Object 3D Position & Lens Accommodation
+            // Distance 15 (Near) -> 100 (Far) maps to Apple X position 3.65 -> 6.8
+            const normDist = (labObjectDistance - 15) / 85;
+            const appleX = 3.65 + normDist * 3.15;
+            if (targetObjectGroup) {
+                targetObjectGroup.position.x = appleX;
+            }
+
+            // Lens thickness: Near object (normDist=0) -> Thick/Convex (0.68), Far object (normDist=1) -> Thin/Flat (0.32)
+            currentLensThickness = 0.68 - normDist * 0.36;
+
+            // 3. Calculate Focal Point X inside Eye (-1.92 is exact Retina!)
+            if (visionCondition === 'normal' || glassesEquipped) {
+                currentFocalX = -1.92;
+            } else if (visionCondition === 'miopi') {
+                // Myopia: light focuses IN FRONT OF retina (e.g., X = -0.95) especially for distant objects
+                currentFocalX = -0.85 - (1 - normDist) * 0.6;
+            } else if (visionCondition === 'hipermetropi') {
+                // Hyperopia: light focuses BEHIND retina (e.g., X = -2.65) especially for near objects
+                currentFocalX = -2.68 + normDist * 0.4;
+            }
+
+            // Show/hide 3D corrective glasses
+            if (correctiveGlassesGroup) {
+                correctiveGlassesGroup.visible = (currentMode === 2 && visionCondition !== 'normal' && glassesEquipped);
+                const glassMesh = correctiveGlassesGroup.getObjectByName('correctiveGlassMesh');
+                if (glassMesh) {
+                    // Concave thinner center vs Convex thicker center visual cue
+                    glassMesh.scale.x = visionCondition === 'miopi' ? 0.08 : 0.22;
+                }
+            }
+
+            // 4. Update Telemetry UI in Mode 2
+            const telePupil = document.getElementById('tele-pupil');
+            const teleLens = document.getElementById('tele-lens');
+            const focusBox = document.getElementById('tele-focus-box');
+            const focusIcon = document.getElementById('tele-focus-icon');
+            const focusTitle = document.getElementById('tele-focus-title');
+            const focusDesc = document.getElementById('tele-focus-desc');
+
+            if (telePupil) {
+                if (labLightLevel < 35) telePupil.textContent = 'Membesar (Lebar)';
+                else if (labLightLevel > 70) telePupil.textContent = 'Mengecil (Sempit)';
+                else telePupil.textContent = 'Normal (Sedang)';
+            }
+            if (teleLens) {
+                if (labObjectDistance < 40) teleLens.textContent = 'Menebal (Cembung)';
+                else if (labObjectDistance > 75) teleLens.textContent = 'Menipis (Pipih)';
+                else teleLens.textContent = 'Sedang';
+            }
+
+            if (focusBox) {
+                if (Math.abs(currentFocalX - (-1.92)) < 0.12) {
+                    focusBox.className = 'p-3 rounded-xl bg-emerald-950/80 border border-emerald-400/50';
+                    focusIcon.textContent = '🎯';
+                    focusTitle.textContent = glassesEquipped
+                        ? 'Fokus Diperbaiki Kacamata! (Tepat di Retina)'
+                        : 'Titik Fokus: Tepat di Retina!';
+                    focusTitle.className = 'text-xs font-bold text-emerald-300 flex items-center gap-1.5';
+                    focusDesc.textContent = 'Sinar cahaya jatuh tepat di Retina. Otak menerima gambar yang tajam dan jelas!';
+                } else if (currentFocalX > -1.8) {
+                    focusBox.className = 'p-3 rounded-xl bg-amber-950/80 border border-amber-400/60';
+                    focusIcon.textContent = '⚠️';
+                    focusTitle.textContent = 'Miopi: Cahaya Jatuh di DEPAN Retina!';
+                    focusTitle.className = 'text-xs font-bold text-amber-300 flex items-center gap-1.5';
+                    focusDesc.textContent = 'Lensa terlalu cembung/bola mata terlalu panjang. Benda jauh terlihat buram! Klik tombol Pasang Kacamata Cekung (-).';
+                } else {
+                    focusBox.className = 'p-3 rounded-xl bg-rose-950/80 border border-rose-400/60';
+                    focusIcon.textContent = '⚠️';
+                    focusTitle.textContent = 'Hipermetropi: Cahaya Jatuh di BELAKANG Retina!';
+                    focusTitle.className = 'text-xs font-bold text-rose-300 flex items-center gap-1.5';
+                    focusDesc.textContent = 'Bayangan jatuh di belakang Retina sehingga benda dekat tampak kabur! Klik tombol Pasang Kacamata Cembung (+).';
+                }
+            }
+
+            updateLightRaysGeometry();
+        }
+
+        function updateLightRaysGeometry() {
+            if (!rayLinesGroup) return;
+            const appleX = targetObjectGroup ? targetObjectGroup.position.x : 5.2;
+            const apertureFactor = Math.max(0.28, Math.min(0.68, currentPupilScale * 0.36));
+
+            rayLinesGroup.children.forEach(child => {
+                if (child.isLine && child.userData.offsetY !== undefined) {
+                    const oy = child.userData.offsetY;
+                    const posAttr = child.geometry.attributes.position;
+
+                    // Point 0: Source on 3D Apple
+                    posAttr.setXYZ(0, appleX - 0.3, oy * 0.45, 0);
+                    // Point 1: Corrective Glasses plane (X = 3.05)
+                    const glassSpread = glassesEquipped
+                        ? (visionCondition === 'miopi' ? oy * 1.15 : oy * 0.72)
+                        : oy * 0.85;
+                    posAttr.setXYZ(1, 3.05, glassSpread, 0);
+                    // Point 2: Cornea entry (X = 2.32)
+                    posAttr.setXYZ(2, 2.32, oy * apertureFactor * 2.1, 0);
+                    // Point 3: Crystalline Lens center (X = 1.42)
+                    posAttr.setXYZ(3, 1.42, oy * apertureFactor * 1.7, 0);
+                    // Point 4: Focal Point (currentFocalX, 0, 0)
+                    posAttr.setXYZ(4, currentFocalX, 0, 0);
+
+                    // Point 5: Continuation to Retina wall (-1.94) if focused in front (Myopia) or behind
+                    if (currentFocalX > -1.92) {
+                        // Crosses over before hitting retina
+                        const ratio = (-1.94 - currentFocalX) / (currentFocalX - 1.42);
+                        const retinaY = -(oy * apertureFactor * 1.7) * ratio;
+                        posAttr.setXYZ(5, -1.94, retinaY, 0);
+                    } else {
+                        posAttr.setXYZ(5, currentFocalX, 0, 0);
+                    }
+                    posAttr.needsUpdate = true;
+                }
+            });
+        }
+
+        /*************************************************************************
+         * 8. MODE 3: MINI-GAME 1 (LABIRIN FOKUS 3D) & MINI-GAME 2 (KUIS DETEKTIF)
+         *************************************************************************/
+        let game1Active = false;
+        let game1Score = 0;
+        let game1TimeLeft = 20.0;
+        let game1TargetLens = 50;
+        let game1TargetPupil = 50;
+        let game1Interval = null;
+
+        function switchGameTab(tabNum) {
+            playSound('click');
+            const t1 = document.getElementById('subtab-game1');
+            const t2 = document.getElementById('subtab-game2');
+            const c1 = document.getElementById('game-challenge-1');
+            const c2 = document.getElementById('game-challenge-2');
+
+            if (tabNum === 1) {
+                t1.className = 'flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950';
+                t2.className = 'flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold text-sky-200 hover:bg-slate-800';
+                c1.classList.remove('hidden');
+                c2.classList.add('hidden');
+                targetObjectGroup.visible = true;
+                rayLinesGroup.visible = true;
+                animateCameraTo(new THREE.Vector3(1.2, 0.8, 8.8), new THREE.Vector3(1.0, 0, 0));
+            } else {
+                stopGame1();
+                t2.className = 'flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950';
+                t1.className = 'flex-1 py-1.5 px-2 rounded-lg font-title text-xs sm:text-sm font-bold text-sky-200 hover:bg-slate-800';
+                c2.classList.remove('hidden');
+                c1.classList.add('hidden');
+                targetObjectGroup.visible = false;
+                rayLinesGroup.visible = false;
+                initQuizGame();
+            }
+        }
+
+        function startGame1() {
+            playSound('click');
+            game1Active = true;
+            game1Score = 0;
+            game1TimeLeft = 20.0;
+            document.getElementById('g1-score').textContent = '0 Poin';
+            document.getElementById('btn-start-g1').textContent = '⚡ Misi Sedang Berlangsung...';
+            isCrossSection = true;
+            updateCrossSectionVisuals();
+
+            spawnNextGame1Target();
+
+            if (game1Interval) clearInterval(game1Interval);
+            game1Interval = setInterval(() => {
+                if (!game1Active) return;
+                game1TimeLeft = Math.max(0, game1TimeLeft - 0.1);
+                document.getElementById('g1-timer').textContent = `${game1TimeLeft.toFixed(1)} dtk`;
+
+                if (game1TimeLeft <= 0) {
+                    finishGame1();
+                }
+            }, 100);
+        }
+
+        function stopGame1() {
+            game1Active = false;
+            if (game1Interval) clearInterval(game1Interval);
+        }
+
+        function spawnNextGame1Target() {
+            // Randomize required lens thickness (15..95) & pupil opening (15..95)
+            game1TargetLens = Math.floor(20 + Math.random() * 75);
+            game1TargetPupil = Math.floor(20 + Math.random() * 75);
+
+            // Move 3D apple according to target lens
+            const normDist = 1 - (game1TargetLens / 100);
+            if (targetObjectGroup) {
+                targetObjectGroup.position.x = 3.6 + normDist * 3.1;
+                targetObjectGroup.position.y = (Math.random() - 0.5) * 0.8;
+            }
+
+            // Adjust room lighting according to target pupil
+            const normLight = 1 - (game1TargetPupil / 100);
+            ambientLight.intensity = 0.25 + normLight * 0.85;
+            mainDirLight.intensity = 0.4 + normLight * 1.3;
+
+            onGame1SliderChange();
+        }
+
+        function onGame1SliderChange() {
+            const userLens = parseFloat(document.getElementById('g1-slider-lens').value);
+            const userPupil = parseFloat(document.getElementById('g1-slider-pupil').value);
+
+            document.getElementById('g1-lens-val').textContent = `${Math.round(userLens)}%`;
+            document.getElementById('g1-pupil-val').textContent = `${Math.round(userPupil)}%`;
+
+            // Update 3D lens & pupil geometry from player sliders
+            currentLensThickness = 0.30 + (userLens / 100) * 0.42;
+            currentPupilScale = 0.50 + (userPupil / 100) * 1.05;
+
+            // Calculate error from target
+            const errLens = Math.abs(userLens - game1TargetLens);
+            const errPupil = Math.abs(userPupil - game1TargetPupil);
+            const totalErr = (errLens * 0.65) + (errPupil * 0.35);
+            const accuracy = Math.max(0, Math.min(100, Math.round(100 - totalErr * 1.3)));
+
+            document.getElementById('g1-accuracy-text').textContent = `${accuracy}%`;
+            document.getElementById('g1-accuracy-bar').style.width = `${accuracy}%`;
+
+            // Map error to focal point X (-1.92 is exact retina)
+            const signedErr = (userLens - game1TargetLens) / 50;
+            currentFocalX = -1.92 + signedErr * 0.95;
+            updateLightRaysGeometry();
+
+            // Check if locked on target (>= 91% accuracy) while game is active
+            if (game1Active && accuracy >= 91) {
+                playSound('correct');
+                game1Score += 100;
+                game1TimeLeft = Math.min(20.0, game1TimeLeft + 3.0); // Bonus time!
+                document.getElementById('g1-score').textContent = `${game1Score} Poin`;
+                triggerVictoryBurst(new THREE.Vector3(-1.92, 0, 0));
+                spawnNextGame1Target();
+            }
+        }
+
+        function finishGame1() {
+            stopGame1();
+            playSound('fanfare');
+            document.getElementById('btn-start-g1').textContent = `🏆 Selesai! Skor: ${game1Score} — Main Lagi`;
+            document.getElementById('g1-instruction').innerHTML = `🎉 <strong>Hebat!</strong> Kamu berhasil mengumpulkan <strong>${game1Score} Poin</strong> dengan mengatur daya akomodasi lensa dan refleks pupil! Klik tombol di bawah untuk bermain lagi atau coba <strong>Tantangan 2: Kuis Detektif</strong>!`;
+        }
+
+        // CHALLENGE 2: 5 STORY QUESTIONS WITH 3D SPOTLIGHT
+        const QUIZ_QUESTIONS = [
+            {
+                partId: 'pupil',
+                badge: 'Kasus Detektif #1 • Refleks Cahaya',
+                question: 'Rani baru saja keluar dari gedung bioskop yang agak gelap menuju halaman luar yang terkena sinar matahari terik. Apa yang otomatis dilakukan oleh Pupil mata Rani agar tidak silau?',
+                options: [
+                    'Pupil mengecil agar cahaya yang masuk tidak berlebihan',
+                    'Pupil membesar selebar-lebarnya untuk menyerap matahari',
+                    'Lensa mata berubah warna menjadi hitam pekat',
+                    'Saraf optik menutup pintu kelopak mata'
+                ],
+                correct: 0,
+                explanation: 'Benar sekali! Saat cahaya terang benderang, Iris akan menyempitkan lubang Pupil (mengecil) supaya mata kita tidak silau dan Retina tetap aman.'
+            },
+            {
+                partId: 'lensa',
+                badge: 'Kasus Detektif #2 • Daya Akomodasi',
+                question: 'Budi sedang asyik membaca buku cerita komik pada jarak dekat. Bagaimana perubahan bentuk Lensa Mata Budi agar tulisan di buku terlihat jelas dan tajam?',
+                options: [
+                    'Lensa mata menipis (memipih) seperti kertas',
+                    'Lensa mata menebal (mencembung) dibantu otot siliaris',
+                    'Kornea mata maju ke depan mendekati buku',
+                    'Retina berpindah ke bagian depan mata'
+                ],
+                correct: 1,
+                explanation: 'Tepat! Saat melihat benda dekat, Otot Siliaris berkontraksi sehingga Lensa Mata menebal (semakin cembung) agar cahaya tetap fokus tepat di Retina.'
+            },
+            {
+                partId: 'retina',
+                badge: 'Kasus Detektif #3 • Layar Penangkap Bayangan',
+                question: 'Pada kamera digital terdapat sensor penangkap gambar. Bagian manakah di dinding belakang mata kita yang berfungsi menangkap bayangan cahaya seperti layar sensor kamera?',
+                options: [
+                    'Kornea',
+                    'Otot Siliaris',
+                    'Retina (Selaput Jala)',
+                    'Pupil'
+                ],
+                correct: 2,
+                explanation: 'Hebat! Retina memiliki jutaan sel peka cahaya (sel batang dan sel kerucut) yang menangkap bayangan benda untuk diteruskan ke otak.'
+            },
+            {
+                partId: 'kornea',
+                badge: 'Kasus Detektif #4 • Jendela Pelindung',
+                question: 'Bagian mata manakah yang terletak paling depan, berbentuk kubah bening seperti kaca jendela, dan bertugas membelokkan cahaya pertama kali saat masuk ke mata?',
+                options: [
+                    'Saraf Optik',
+                    'Retina',
+                    'Kornea',
+                    'Bintik Kuning'
+                ],
+                correct: 2,
+                explanation: 'Seratus persen benar! Kornea adalah jendela bening di bagian paling depan mata yang melindungi bagian dalam mata sekaligus membiaskan cahaya.'
+            },
+            {
+                partId: 'saraf',
+                badge: 'Kasus Detektif #5 • Kurir ke Otak',
+                question: 'Setelah bayangan tertangkap tepat di Retina, siapakah yang bertugas mengirimkan pesan sinyal gambar tersebut menuju ke Otak agar kita sadar apa yang sedang kita lihat?',
+                options: [
+                    'Saraf Optik',
+                    'Iris (Selaput Pelangi)',
+                    'Pupil',
+                    'Kelenjar Air Mata'
+                ],
+                correct: 0,
+                explanation: 'Luar biasa! Saraf Optik bekerja seperti kabel data super cepat yang mengirimkan sinyal visual dari Retina menuju ke Otak.'
+            }
+        ];
+
+        let quizIndex = 0;
+        let quizScore = 0;
+        let quizLives = 3;
+        let quizAnswered = false;
+
+        function initQuizGame() {
+            quizIndex = 0;
+            quizScore = 0;
+            quizLives = 3;
+            document.getElementById('quiz-question-container').classList.remove('hidden');
+            document.getElementById('quiz-celebration').classList.add('hidden');
+            renderCurrentQuizQuestion();
+        }
+
+        function renderCurrentQuizQuestion() {
+            quizAnswered = false;
+            const q = QUIZ_QUESTIONS[quizIndex];
+            document.getElementById('q-index').textContent = quizIndex + 1;
+            document.getElementById('q-score').textContent = quizScore;
+            document.getElementById('q-hearts').textContent = '❤️'.repeat(quizLives) + '🖤'.repeat(3 - quizLives);
+            document.getElementById('q-badge').textContent = q.badge;
+            document.getElementById('q-text').textContent = q.question;
+
+            // Zoom 3D camera to spotlight the questioned eye part!
+            const partObj = ANATOMY_PARTS.find(p => p.id === q.partId);
+            if (partObj) {
+                if (['lensa', 'siliaris', 'retina', 'saraf'].includes(partObj.id)) {
+                    isCrossSection = true;
+                    updateCrossSectionVisuals();
+                }
+                animateCameraTo(partObj.camPos, partObj.camTarget, 750);
+            }
+
+            const optsDiv = document.getElementById('q-options');
+            optsDiv.innerHTML = '';
+            q.options.forEach((optText, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-sci w-full text-left p-2.5 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 border border-slate-600 text-slate-100 flex items-center gap-2';
+                const letters = ['A', 'B', 'C', 'D'];
+                btn.innerHTML = `<span class="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 flex items-center justify-center shrink-0">${letters[idx]}</span> <span>${optText}</span>`;
+                btn.onclick = () => submitQuizAnswer(idx, btn);
+                optsDiv.appendChild(btn);
+            });
+
+            document.getElementById('q-feedback').classList.add('hidden');
+            document.getElementById('btn-next-q').classList.add('hidden');
+        }
+
+        function submitQuizAnswer(selectedIdx, btnElement) {
+            if (quizAnswered) return;
+            quizAnswered = true;
+
+            const q = QUIZ_QUESTIONS[quizIndex];
+            const fb = document.getElementById('q-feedback');
+            fb.classList.remove('hidden');
+
+            if (selectedIdx === q.correct) {
+                playSound('correct');
+                quizScore += 100;
+                btnElement.className = 'w-full text-left p-2.5 rounded-xl text-xs font-bold bg-emerald-600/90 border-2 border-emerald-300 text-white flex items-center gap-2';
+                fb.className = 'p-3 rounded-xl text-xs leading-relaxed bg-emerald-950/90 border border-emerald-400 text-emerald-200';
+                fb.innerHTML = `✅ <strong>Jawaban Tepat!</strong> ${q.explanation}`;
+                const partObj = ANATOMY_PARTS.find(p => p.id === q.partId);
+                triggerVictoryBurst(partObj ? partObj.pos3D : new THREE.Vector3(0, 0, 0));
+            } else {
+                playSound('wrong');
+                quizLives = Math.max(0, quizLives - 1);
+                btnElement.className = 'w-full text-left p-2.5 rounded-xl text-xs font-bold bg-rose-700/90 border-2 border-rose-300 text-white flex items-center gap-2';
+                fb.className = 'p-3 rounded-xl text-xs leading-relaxed bg-rose-950/90 border border-rose-400 text-rose-200';
+                fb.innerHTML = `❌ <strong>Kurang Tepat!</strong> ${q.explanation}`;
+            }
+
+            document.getElementById('q-score').textContent = quizScore;
+            document.getElementById('q-hearts').textContent = '❤️'.repeat(quizLives) + '🖤'.repeat(3 - quizLives);
+            document.getElementById('btn-next-q').classList.remove('hidden');
+        }
+
+        function nextQuizQuestion() {
+            playSound('click');
+            if (quizLives <= 0 || quizIndex >= QUIZ_QUESTIONS.length - 1) {
+                showQuizCelebration();
+            } else {
+                quizIndex++;
+                renderCurrentQuizQuestion();
+            }
+        }
+
+        function showQuizCelebration() {
+            playSound('fanfare');
+            document.getElementById('quiz-question-container').classList.add('hidden');
+            document.getElementById('quiz-celebration').classList.remove('hidden');
+            document.getElementById('cel-final-score').textContent = `${quizScore} Poin`;
+
+            const title = document.getElementById('cel-title');
+            const desc = document.getElementById('cel-desc');
+            if (quizScore >= 400) {
+                title.textContent = '🏆 Detektif Master Lensa Mata!';
+                desc.textContent = 'Luar biasa! Kamu menguasai seluruh anatomi mata dan rahasia proses melihat dengan sangat cemerlang!';
+            } else if (quizScore >= 200) {
+                title.textContent = '🌟 Detektif Muda Hebat!';
+                desc.textContent = 'Kerja bagus! Kamu sudah memahami bagian-bagian penting mata. Yuk main lagi untuk meraih skor sempurna!';
+            } else {
+                title.textContent = '💪 Jangan Menyerah, Detektif!';
+                desc.textContent = 'Pelajari kembali bagian mata di Mode 1 & Mode 2, lalu coba pecahkan kuis ini sekali lagi!';
+            }
+            triggerVictoryBurst(new THREE.Vector3(0, 0, 0));
+            resetCameraView();
+        }
+
+        function restartQuiz() {
+            playSound('click');
+            initQuizGame();
+        }
+
+        /*************************************************************************
+         * 9. TOP-LEVEL MODE SWITCHING (MODE 1 / MODE 2 / MODE 3)
+         *************************************************************************/
+        function switchMode(modeNum) {
+            playSound('click');
+            currentMode = modeNum;
+            stopGame1();
+
+            // Update Top Tab Styles
+            [1, 2, 3].forEach(n => {
+                const tab = document.getElementById(`tab-mode-${n}`);
+                const panel = document.getElementById(`panel-mode-${n}`);
+                if (n === modeNum) {
+                    tab.className = 'btn-sci flex-1 sm:flex-initial px-3 py-2 rounded-xl font-title text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/30 border border-cyan-300/50';
+                    panel.classList.remove('hidden');
+                    panel.classList.add('flex');
+                } else {
+                    tab.className = 'btn-sci flex-1 sm:flex-initial px-3 py-2 rounded-xl font-title text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 text-sky-200 hover:bg-slate-800/60';
+                    panel.classList.add('hidden');
+                    panel.classList.remove('flex');
+                }
+            });
+
+            const hint = document.getElementById('bottom-hint');
+
+            if (modeNum === 1) {
+                targetObjectGroup.visible = false;
+                rayLinesGroup.visible = false;
+                correctiveGlassesGroup.visible = false;
+                ambientLight.intensity = 0.65;
+                mainDirLight.intensity = 1.15;
+                currentPupilScale = 1.0;
+                currentLensThickness = 0.45;
+                hint.textContent = 'Mode 1: Klik salah satu dari 7 titik berkedip pada bola mata 3D untuk belajar bagian-bagian mata!';
+                resetCameraView();
+            } else if (modeNum === 2) {
+                isCrossSection = true;
+                updateCrossSectionVisuals();
+                targetObjectGroup.visible = true;
+                rayLinesGroup.visible = true;
+                hint.textContent = 'Mode 2: Geser slider Intensitas Cahaya & Jarak Benda untuk mengamati refleks Pupil dan daya akomodasi Lensa!';
+                animateCameraTo(new THREE.Vector3(1.2, 0.8, 8.8), new THREE.Vector3(1.0, 0, 0));
+                updateOpticalSimulation();
+            } else if (modeNum === 3) {
+                isCrossSection = true;
+                updateCrossSectionVisuals();
+                hint.textContent = 'Mode 3: Selesaikan Misi Penyelamatan Cahaya dan Kuis Detektif Mata untuk meraih Trofi!';
+                switchGameTab(1);
+            }
+        }
+
+        /*************************************************************************
+         * 10. MAIN ANIMATION LOOP & WINDOW RESIZE HANDLER
+         *************************************************************************/
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+
+            // Smooth Camera Tweening
+            if (cameraTween) {
+                const elapsed = now - cameraTween.startTime;
+                const t = Math.min(1, elapsed / cameraTween.duration);
+                const ease = 1 - Math.pow(1 - t, 3); // Cubic ease-out
+                camera.position.lerpVectors(cameraTween.startPos, cameraTween.endPos, ease);
+                controls.target.lerpVectors(cameraTween.startTarget, cameraTween.endTarget, ease);
+                if (t >= 1) cameraTween = null;
+            }
+
+            controls.update();
+
+            // Smoothly interpolate 3D Pupil dilation & Iris inner opening
+            if (pupilMesh && irisMesh) {
+                pupilMesh.scale.lerp(new THREE.Vector3(1, currentPupilScale, currentPupilScale), 0.12);
+                // Subtle inverse scale on iris inner ring appearance
+                const irisS = 1.0 + (currentPupilScale - 1.0) * 0.08;
+                irisMesh.scale.lerp(new THREE.Vector3(1, irisS, irisS), 0.12);
+            }
+
+            // Smoothly interpolate 3D Crystalline Lens thickness (Accommodation)
+            if (lensMesh) {
+                const targetScaleY = 0.94 + (currentLensThickness - 0.45) * 0.35;
+                lensMesh.scale.lerp(new THREE.Vector3(currentLensThickness, targetScaleY, targetScaleY), 0.12);
+            }
+
+            // Animate floating 3D Apple in Mode 2 & 3
+            if (targetObjectGroup && targetObjectGroup.visible) {
+                targetObjectGroup.rotation.y += 0.015;
+                if (currentMode === 2) {
+                    targetObjectGroup.position.y = Math.sin(now * 0.003) * 0.12;
+                }
+            }
+
+            // Animate moving yellow light photon particles along rays
+            if (rayLinesGroup && rayLinesGroup.visible) {
+                rayParticles.forEach(p => {
+                    p.progress += 0.014;
+                    if (p.progress > 1) p.progress -= 1;
+
+                    const posAttr = p.line.geometry.attributes.position;
+                    const totalSegments = 4; // 0..4 (Source -> Glasses -> Cornea -> Lens -> Focal)
+                    const segFloat = p.progress * totalSegments;
+                    const idx = Math.min(3, Math.floor(segFloat));
+                    const frac = segFloat - idx;
+
+                    const vStart = new THREE.Vector3().fromBufferAttribute(posAttr, idx);
+                    const vEnd = new THREE.Vector3().fromBufferAttribute(posAttr, idx + 1);
+                    p.mesh.position.lerpVectors(vStart, vEnd, frac);
+                });
+            }
+
+            // Animate Victory Star Burst Particles
+            if (victoryBurstTimer > 0) {
+                victoryBurstTimer--;
+                victoryStars.forEach(s => {
+                    s.mesh.position.add(s.vel);
+                    s.mesh.rotation.x += 0.08;
+                    s.mesh.rotation.y += 0.08;
+                });
+                if (victoryBurstTimer <= 0) {
+                    victoryStarsGroup.visible = false;
+                }
+            }
+
+            // Update HTML Hotspot positions over 3D Eye
+            updateHotspotsScreenPositions();
+
+            renderer.render(scene, camera);
+        }
+
+        // Start Application on Window Load
+        window.onload = function () {
+            initThreeScene();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
